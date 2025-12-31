@@ -20,20 +20,18 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    if (isSignUp && !email.trim()) {
-      toast({ title: 'Error', description: 'Please provide an email', variant: 'destructive' });
-      setIsLoading(false);
-      return;
-    }
-
-    if (!username.trim() || !password.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please fill in all fields',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
-      return;
+    if (isSignUp) {
+      if (!username.trim() || !email.trim() || !password.trim()) {
+        toast({ title: 'Error', description: 'Please fill in all fields', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
+    } else {
+      if (!email.trim() || !password.trim()) {
+        toast({ title: 'Error', description: 'Please fill in all fields', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
     }
 
     if (password.length < 4) {
@@ -50,32 +48,18 @@ const Auth = () => {
       if (isSignUp) {
         const success = await signUp(username.trim(), email.trim(), password);
         if (success) {
-          toast({
-            title: 'Welcome!',
-            description: 'Your account has been created',
-          });
+          toast({ title: 'Welcome!', description: 'Your account has been created' });
           navigate('/feed');
         } else {
-          toast({
-            title: 'Error',
-            description: 'Username already taken',
-            variant: 'destructive',
-          });
+          toast({ title: 'Error', description: 'Username or email already taken', variant: 'destructive' });
         }
       } else {
         const success = await signIn(email.trim(), password);
         if (success) {
-          toast({
-            title: 'Welcome back!',
-            description: 'You have been signed in',
-          });
+          toast({ title: 'Welcome back!', description: 'You have been signed in' });
           navigate('/feed');
         } else {
-          toast({
-            title: 'Error',
-            description: 'Invalid username or password',
-            variant: 'destructive',
-          });
+          toast({ title: 'Error', description: 'Invalid email or password', variant: 'destructive' });
         }
       }
     } finally {
@@ -94,33 +78,33 @@ const Auth = () => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
-              className="h-12"
-              autoComplete="username"
-            />
-          </div>
-
           {isSignUp && (
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username (display name)"
                 className="h-12"
-                autoComplete="email"
+                autoComplete="username"
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              className="h-12"
+              autoComplete="email"
+            />
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>

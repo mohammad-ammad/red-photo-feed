@@ -225,7 +225,7 @@ export const signUp = async (username: string, email: string, password: string):
 export const signIn = async (email: string, password: string): Promise<User | null> => {
   if (!supabase) {
     const users = getUsers();
-    const user = users.find(u => (u.username === email || u.email === email) && u.password === password);
+    const user = users.find(u => u.email === email && u.password === password);
     if (user) {
       localStorage.setItem(CURRENT_USER_KEY, user.id);
       return user;

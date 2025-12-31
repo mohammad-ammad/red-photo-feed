@@ -4,7 +4,7 @@ import { User, getCurrentUser, signIn as storageSignIn, signUp as storageSignUp,
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  signIn: (username: string, password: string) => Promise<boolean>;
+  signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (username: string, email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
 }
@@ -25,8 +25,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     init();
   }, []);
 
-  const signIn = async (username: string, password: string): Promise<boolean> => {
-    const loggedInUser = await storageSignIn(username, password);
+  const signIn = async (email: string, password: string): Promise<boolean> => {
+    const loggedInUser = await storageSignIn(email, password);
     if (loggedInUser) {
       setUser(loggedInUser);
       return true;
