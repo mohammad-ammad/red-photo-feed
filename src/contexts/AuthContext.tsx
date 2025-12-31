@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, getCurrentUser, signIn as storageSignIn, signUp as storageSignUp, signOut as storageSignOut, initializeStorage } from '@/lib/storage';
+import { User, getCurrentUser, signIn as storageSignIn, signUp as storageSignUp, SignUpResult, signOut as storageSignOut, initializeStorage } from '@/lib/storage';
 
 interface AuthContextType {
   user: User | null;
@@ -35,12 +35,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signUp = async (username: string, email: string, password: string): Promise<boolean> => {
-    const newUser = await storageSignUp(username, email, password);
-    if (newUser) {
-      setUser(newUser);
+    const result: SignUpResult = await storageSignUp(username, email, password);
+    if (result.success && result.user) {
+      setUser(result.user);
       return true;
     }
-    return false;
+    // success with no user means sign-up created but needs verification — do not auto-login
+    return result.success;
   };
 
   const signOut = async () => {

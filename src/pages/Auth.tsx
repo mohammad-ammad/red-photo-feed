@@ -48,8 +48,7 @@ const Auth = () => {
       if (isSignUp) {
         const success = await signUp(username.trim(), email.trim(), password);
         if (success) {
-          toast({ title: 'Welcome!', description: 'Your account has been created' });
-          navigate('/feed');
+          toast({ title: 'Check your email', description: 'A verification link has been sent. Please verify your email before signing in.' });
         } else {
           toast({ title: 'Error', description: 'Username or email already taken', variant: 'destructive' });
         }

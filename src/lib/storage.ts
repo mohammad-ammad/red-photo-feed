@@ -212,10 +212,16 @@ export const getCurrentUser = (): User | null => {
   return users.find(u => u.id === userId) || null;
 };
 
-export const signUp = async (username: string, email: string, password: string): Promise<User | null> => {
+export type SignUpResult = {
+  success: boolean;
+  user?: User;
+  needsVerification?: boolean;
+};
+
+export const signUp = async (username: string, email: string, password: string): Promise<SignUpResult> => {
   if (!supabase) {
     const users = getUsers();
-    if (users.find(u => u.username === username)) return null;
+    if (users.find(u => u.username === username)) return { success: false };
     const newUser: User = {
       id: Date.now().toString(),
       username,
@@ -228,11 +234,11 @@ export const signUp = async (username: string, email: string, password: string):
     users.push(newUser);
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
     localStorage.setItem(CURRENT_USER_KEY, newUser.id);
-    return newUser;
+    return { success: true, user: newUser };
   }
 
   const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } });
-  if (error || !data?.user) return null;
+  if (error || !data?.user) return { success: false };
   const user = data.user;
   try {
     await supabase.from('profiles').insert({ id: user.id, username, avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${username}` });
@@ -240,19 +246,9 @@ export const signUp = async (username: string, email: string, password: string):
     // ignore
   }
 
-  const users = getUsers();
-  users.push({
-    id: user.id,
-    username,
-    email,
-    password: '',
-    avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${username}`,
-    bio: '',
-    createdAt: new Date().toISOString(),
-  });
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  localStorage.setItem(CURRENT_USER_KEY, user.id);
-  return users[users.length - 1];
+  // Do NOT sign the user in locally — require email verification step.
+  // Return a success flag indicating verification is needed.
+  return { success: true, needsVerification: true };
 };
 
 export const signIn = async (email: string, password: string): Promise<User | null> => {
