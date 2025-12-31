@@ -6,8 +6,9 @@ import Layout from '@/components/Layout';
 const Feed = () => {
   const [posts, setPosts] = useState<Post[]>([]);
 
-  const loadPosts = () => {
-    setPosts(getPosts());
+  const loadPosts = async () => {
+    const data = await getPosts();
+    setPosts(data);
   };
 
   useEffect(() => {

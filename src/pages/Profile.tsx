@@ -13,9 +13,13 @@ const Profile = () => {
   const [posts, setPosts] = useState<Post[]>([]);
 
   useEffect(() => {
-    if (user) {
-      setPosts(getPostsByUserId(user.id));
-    }
+    const load = async () => {
+      if (user) {
+        const data = await getPostsByUserId(user.id);
+        setPosts(data);
+      }
+    };
+    load();
   }, [user]);
 
   const handleSignOut = () => {

@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabase';
+
 export interface User {
   id: string;
   username: string;
@@ -5,6 +7,13 @@ export interface User {
   password: string;
   avatar: string;
   bio: string;
+  createdAt: string;
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  text: string;
   createdAt: string;
 }
 
@@ -17,15 +26,6 @@ export interface Post {
   comments: Comment[];
   createdAt: string;
 }
-
-export interface Comment {
-  id: string;
-  userId: string;
-  text: string;
-  createdAt: string;
-}
-
-import { supabase } from '@/lib/supabase';
 
 const USERS_KEY = 'gallery_users';
 const POSTS_KEY = 'gallery_posts';
@@ -79,78 +79,74 @@ export const initializeStorage = () => {
   if (!localStorage.getItem(POSTS_KEY)) {
     localStorage.setItem(POSTS_KEY, JSON.stringify(samplePosts));
   }
-  // If Supabase is configured, sync current auth state to local storage and
-  // ensure a cached profile exists for quick lookups in the UI.
-  if (supabase) {
-    // initial session sync
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        const user = data?.session?.user;
-        if (user) {
-          localStorage.setItem(CURRENT_USER_KEY, user.id);
-          // try to fetch profile and cache it locally
-          try {
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-            if (profile) {
-              const users = getUsers();
-              const exists = users.find(u => u.id === profile.id);
-              if (!exists) {
-                users.push({
-                  id: profile.id,
-                  username: profile.username || '',
-                  email: user.email || '',
-                  password: '',
-                  avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
-                  bio: profile.bio || '',
-                  createdAt: profile.created_at || new Date().toISOString(),
-                });
-                localStorage.setItem(USERS_KEY, JSON.stringify(users));
-              }
-            }
-          } catch (e) {
-            // ignore profile fetch errors
-          }
-        }
-      } catch (e) {
-        // ignore session fetch errors
-      }
-    })();
 
-    // listen to auth changes and keep local cache in sync
-    supabase.auth.onAuthStateChange((event, session) => {
-      const user = session?.user || null;
+  if (!supabase) return;
+
+  // sync session and cache profile locally
+  (async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const user = data?.session?.user;
       if (user) {
         localStorage.setItem(CURRENT_USER_KEY, user.id);
-        // fetch profile and cache it
-        (async () => {
-          try {
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-            if (profile) {
-              const users = getUsers();
-              const exists = users.find(u => u.id === profile.id);
-              if (!exists) {
-                users.push({
-                  id: profile.id,
-                  username: profile.username || '',
-                  email: user.email || '',
-                  password: '',
-                  avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
-                  bio: profile.bio || '',
-                  createdAt: profile.created_at || new Date().toISOString(),
-                });
-                localStorage.setItem(USERS_KEY, JSON.stringify(users));
-              }
+        try {
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          if (profile) {
+            const users = getUsers();
+            const exists = users.find(u => u.id === profile.id);
+            if (!exists) {
+              users.push({
+                id: profile.id,
+                username: profile.username || '',
+                email: user.email || '',
+                password: '',
+                avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
+                bio: profile.bio || '',
+                createdAt: profile.created_at || new Date().toISOString(),
+              });
+              localStorage.setItem(USERS_KEY, JSON.stringify(users));
             }
-          } catch (e) {
-            // ignore profile fetch errors
           }
-        })();
-      } else {
-        localStorage.removeItem(CURRENT_USER_KEY);
+        } catch (e) {
+          // ignore
+        }
       }
-    });
-  }
+    } catch (e) {
+      // ignore
+    }
+  })();
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    const user = session?.user || null;
+    if (user) {
+      localStorage.setItem(CURRENT_USER_KEY, user.id);
+      (async () => {
+        try {
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          if (profile) {
+            const users = getUsers();
+            const exists = users.find(u => u.id === profile.id);
+            if (!exists) {
+              users.push({
+                id: profile.id,
+                username: profile.username || '',
+                email: user.email || '',
+                password: '',
+                avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
+                bio: profile.bio || '',
+                createdAt: profile.created_at || new Date().toISOString(),
+              });
+              localStorage.setItem(USERS_KEY, JSON.stringify(users));
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+      })();
+    } else {
+      localStorage.removeItem(CURRENT_USER_KEY);
+    }
+  });
 };
 
 export const getUsers = (): User[] => {
@@ -158,9 +154,55 @@ export const getUsers = (): User[] => {
   return users ? JSON.parse(users) : [];
 };
 
-export const getPosts = (): Post[] => {
+// synchronous helper used by UI to access cached posts when supabase not configured
+const getPostsSync = (): Post[] => {
   const posts = localStorage.getItem(POSTS_KEY);
   return posts ? JSON.parse(posts) : [];
+};
+
+export const getPosts = async (): Promise<Post[]> => {
+  if (!supabase) return getPostsSync();
+
+  try {
+    const { data: postsData, error: postsError } = await supabase
+      .from('posts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (postsError || !postsData) return [];
+
+    const postIds = postsData.map((p: any) => p.id);
+    const { data: commentsData } = await supabase
+      .from('comments')
+      .select('*')
+      .in('post_id', postIds)
+      .order('created_at', { ascending: true });
+
+    const commentsByPost: Record<string, Comment[]> = {};
+    (commentsData || []).forEach((c: any) => {
+      const cm: Comment = {
+        id: c.id,
+        userId: c.user_id,
+        text: c.text,
+        createdAt: c.created_at,
+      };
+      commentsByPost[c.post_id] = commentsByPost[c.post_id] || [];
+      commentsByPost[c.post_id].push(cm);
+    });
+
+    const posts: Post[] = (postsData || []).map((p: any) => ({
+      id: p.id,
+      userId: p.user_id,
+      imageUrl: p.image_url,
+      caption: p.caption || '',
+      likes: p.likes || [],
+      comments: commentsByPost[p.id] || [],
+      createdAt: p.created_at,
+    }));
+
+    return posts;
+  } catch (e) {
+    return [];
+  }
 };
 
 export const getCurrentUser = (): User | null => {
@@ -170,13 +212,10 @@ export const getCurrentUser = (): User | null => {
   return users.find(u => u.id === userId) || null;
 };
 
-
 export const signUp = async (username: string, email: string, password: string): Promise<User | null> => {
   if (!supabase) {
     const users = getUsers();
-    if (users.find(u => u.username === username)) {
-      return null;
-    }
+    if (users.find(u => u.username === username)) return null;
     const newUser: User = {
       id: Date.now().toString(),
       username,
@@ -192,24 +231,20 @@ export const signUp = async (username: string, email: string, password: string):
     return newUser;
   }
 
-  // Use Supabase auth (map username to an email for auth reasons)
   const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } });
   if (error || !data?.user) return null;
-
   const user = data.user;
-  // create profile row
   try {
     await supabase.from('profiles').insert({ id: user.id, username, avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${username}` });
   } catch (e) {
-    // ignore insert errors
+    // ignore
   }
 
-  // cache minimal profile locally for UI usage
   const users = getUsers();
   users.push({
     id: user.id,
     username,
-    email: email,
+    email,
     password: '',
     avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${username}`,
     bio: '',
@@ -217,10 +252,8 @@ export const signUp = async (username: string, email: string, password: string):
   });
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
   localStorage.setItem(CURRENT_USER_KEY, user.id);
-
   return users[users.length - 1];
 };
-
 
 export const signIn = async (email: string, password: string): Promise<User | null> => {
   if (!supabase) {
@@ -235,98 +268,162 @@ export const signIn = async (email: string, password: string): Promise<User | nu
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data?.user) return null;
-
   const user = data.user;
-  // fetch profile and cache locally
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-  const users = getUsers();
-  const existing = users.find(u => u.id === user.id);
-  if (!existing) {
-    const fallbackUsername = profile?.username || (user.email ? user.email.split('@')[0] : '');
-    users.push({
-      id: user.id,
-      username: fallbackUsername,
-      email: user.email || '',
-      password: '',
-      avatar: profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${fallbackUsername}`,
-      bio: profile?.bio || '',
-      createdAt: profile?.created_at || new Date().toISOString(),
-    });
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  try {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    const users = getUsers();
+    const existing = users.find(u => u.id === user.id);
+    if (!existing) {
+      const fallbackUsername = profile?.username || (user.email ? user.email.split('@')[0] : '');
+      users.push({
+        id: user.id,
+        username: fallbackUsername,
+        email: user.email || '',
+        password: '',
+        avatar: profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${fallbackUsername}`,
+        bio: profile?.bio || '',
+        createdAt: profile?.created_at || new Date().toISOString(),
+      });
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
+  } catch (e) {
+    // ignore
   }
   localStorage.setItem(CURRENT_USER_KEY, user.id);
-
   return getUsers().find(u => u.id === user.id) || null;
 };
-
 
 export const signOut = async () => {
   if (supabase) {
     try {
       await supabase.auth.signOut();
     } catch (e) {
-      // ignore signOut errors
+      // ignore
     }
   }
   localStorage.removeItem(CURRENT_USER_KEY);
 };
 
-export const createPost = (imageUrl: string, caption: string): Post | null => {
+export const createPost = async (imageUrl: string, caption: string): Promise<Post | null> => {
   const currentUser = getCurrentUser();
   if (!currentUser) return null;
-  
-  const posts = getPosts();
-  const newPost: Post = {
-    id: Date.now().toString(),
-    userId: currentUser.id,
-    imageUrl,
-    caption,
-    likes: [],
-    comments: [],
-    createdAt: new Date().toISOString(),
-  };
-  posts.unshift(newPost);
-  localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
-  return newPost;
-};
 
-export const toggleLike = (postId: string): Post | null => {
-  const currentUser = getCurrentUser();
-  if (!currentUser) return null;
-  
-  const posts = getPosts();
-  const post = posts.find(p => p.id === postId);
-  if (!post) return null;
-  
-  const likeIndex = post.likes.indexOf(currentUser.id);
-  if (likeIndex > -1) {
-    post.likes.splice(likeIndex, 1);
-  } else {
-    post.likes.push(currentUser.id);
+  if (!supabase) {
+    const posts = getPostsSync();
+    const newPost: Post = {
+      id: Date.now().toString(),
+      userId: currentUser.id,
+      imageUrl,
+      caption,
+      likes: [],
+      comments: [],
+      createdAt: new Date().toISOString(),
+    };
+    posts.unshift(newPost);
+    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    return newPost;
   }
-  
-  localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
-  return post;
+
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .insert({ user_id: currentUser.id, image_url: imageUrl, caption })
+      .select()
+      .single();
+    if (error || !data) return null;
+    const post: Post = {
+      id: data.id,
+      userId: data.user_id,
+      imageUrl: data.image_url,
+      caption: data.caption || '',
+      likes: data.likes || [],
+      comments: [],
+      createdAt: data.created_at,
+    };
+    return post;
+  } catch (e) {
+    return null;
+  }
 };
 
-export const addComment = (postId: string, text: string): Post | null => {
+export const toggleLike = async (postId: string): Promise<Post | null> => {
   const currentUser = getCurrentUser();
   if (!currentUser) return null;
-  
-  const posts = getPosts();
-  const post = posts.find(p => p.id === postId);
-  if (!post) return null;
-  
-  const newComment: Comment = {
-    id: Date.now().toString(),
-    userId: currentUser.id,
-    text,
-    createdAt: new Date().toISOString(),
-  };
-  post.comments.push(newComment);
-  
-  localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
-  return post;
+
+  if (!supabase) {
+    const posts = getPostsSync();
+    const post = posts.find(p => p.id === postId);
+    if (!post) return null;
+    const likeIndex = post.likes.indexOf(currentUser.id);
+    if (likeIndex > -1) post.likes.splice(likeIndex, 1);
+    else post.likes.push(currentUser.id);
+    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    return post;
+  }
+
+  try {
+    const { data: postRow } = await supabase.from('posts').select('*').eq('id', postId).maybeSingle();
+    if (!postRow) return null;
+    const likes: string[] = postRow.likes || [];
+    const idx = likes.findIndex((id: string) => id === currentUser.id);
+    if (idx > -1) likes.splice(idx, 1);
+    else likes.push(currentUser.id);
+    const { data: updated } = await supabase.from('posts').update({ likes }).eq('id', postId).select().maybeSingle();
+    if (!updated) return null;
+    const { data: commentsData } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
+    const post: Post = {
+      id: updated.id,
+      userId: updated.user_id,
+      imageUrl: updated.image_url,
+      caption: updated.caption || '',
+      likes: updated.likes || [],
+      comments: (commentsData || []).map((c: any) => ({ id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at })),
+      createdAt: updated.created_at,
+    };
+    return post;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const addComment = async (postId: string, text: string): Promise<Post | null> => {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return null;
+
+  if (!supabase) {
+    const posts = getPostsSync();
+    const post = posts.find(p => p.id === postId);
+    if (!post) return null;
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      userId: currentUser.id,
+      text,
+      createdAt: new Date().toISOString(),
+    };
+    post.comments.push(newComment);
+    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    return post;
+  }
+
+  try {
+    const { data: inserted } = await supabase.from('comments').insert({ post_id: postId, user_id: currentUser.id, text }).select().single();
+    if (!inserted) return null;
+    const { data: postRow } = await supabase.from('posts').select('*').eq('id', postId).maybeSingle();
+    if (!postRow) return null;
+    const { data: commentsData } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
+    const post: Post = {
+      id: postRow.id,
+      userId: postRow.user_id,
+      imageUrl: postRow.image_url,
+      caption: postRow.caption || '',
+      likes: postRow.likes || [],
+      comments: (commentsData || []).map((c: any) => ({ id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at })),
+      createdAt: postRow.created_at,
+    };
+    return post;
+  } catch (e) {
+    return null;
+  }
 };
 
 export const getUserById = (userId: string): User | null => {
@@ -334,7 +431,23 @@ export const getUserById = (userId: string): User | null => {
   return users.find(u => u.id === userId) || null;
 };
 
-export const getPostsByUserId = (userId: string): Post[] => {
-  const posts = getPosts();
-  return posts.filter(p => p.userId === userId);
+export const getPostsByUserId = async (userId: string): Promise<Post[]> => {
+  if (!supabase) {
+    return getPostsSync().filter(p => p.userId === userId);
+  }
+  try {
+    const { data: postsData } = await supabase.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if (!postsData) return [];
+    const postIds = postsData.map((p: any) => p.id);
+    const { data: commentsData } = await supabase.from('comments').select('*').in('post_id', postIds).order('created_at', { ascending: true });
+    const commentsByPost: Record<string, Comment[]> = {};
+    (commentsData || []).forEach((c: any) => {
+      const cm: Comment = { id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at };
+      commentsByPost[c.post_id] = commentsByPost[c.post_id] || [];
+      commentsByPost[c.post_id].push(cm);
+    });
+    return postsData.map((p: any) => ({ id: p.id, userId: p.user_id, imageUrl: p.image_url, caption: p.caption || '', likes: p.likes || [], comments: commentsByPost[p.id] || [], createdAt: p.created_at }));
+  } catch (e) {
+    return [];
+  }
 };

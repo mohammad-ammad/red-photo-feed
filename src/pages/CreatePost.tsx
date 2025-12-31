@@ -15,7 +15,7 @@ const CreatePost = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!imageUrl.trim()) {
@@ -29,8 +29,8 @@ const CreatePost = () => {
 
     setIsLoading(true);
 
-    const post = createPost(imageUrl.trim(), caption.trim());
-    
+    const post = await createPost(imageUrl.trim(), caption.trim());
+
     if (post) {
       toast({
         title: 'Posted!',

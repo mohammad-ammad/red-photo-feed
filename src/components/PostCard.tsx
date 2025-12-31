@@ -19,20 +19,20 @@ const PostCard = ({ post, onUpdate }: PostCardProps) => {
   const postUser = getUserById(post.userId);
   const isLiked = currentUser ? post.likes.includes(currentUser.id) : false;
 
-  const handleLike = () => {
+  const handleLike = async () => {
     if (!currentUser) return;
     setIsLikeAnimating(true);
-    toggleLike(post.id);
-    onUpdate();
+    await toggleLike(post.id);
+    await onUpdate();
     setTimeout(() => setIsLikeAnimating(false), 300);
   };
 
-  const handleComment = (e: React.FormEvent) => {
+  const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentText.trim() || !currentUser) return;
-    addComment(post.id, commentText.trim());
+    await addComment(post.id, commentText.trim());
     setCommentText('');
-    onUpdate();
+    await onUpdate();
   };
 
   const formatDate = (dateString: string) => {
