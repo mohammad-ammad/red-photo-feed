@@ -171,11 +171,66 @@ export const getPosts = async (): Promise<Post[]> => {
     if (postsError || !postsData) return [];
 
     const postIds = postsData.map((p: any) => p.id);
+    // cache profiles for authors of these posts so UI can resolve usernames
+    try {
+      const userIds = Array.from(new Set((postsData || []).map((p: any) => p.user_id)));
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('*').in('id', userIds as string[]);
+        if (profiles && profiles.length) {
+          const users = getUsers();
+          profiles.forEach((pr: any) => {
+            if (!users.find(u => u.id === pr.id)) {
+              users.push({
+                id: pr.id,
+                username: pr.username || '',
+                email: '',
+                password: '',
+                avatar: pr.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${pr.username}`,
+                bio: pr.bio || '',
+                createdAt: pr.created_at || new Date().toISOString(),
+              });
+            }
+          });
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        }
+      }
+    } catch (e) {
+      // ignore profile caching errors
+    }
     const { data: commentsData } = await supabase
       .from('comments')
       .select('*')
       .in('post_id', postIds)
       .order('created_at', { ascending: true });
+
+    // cache profiles for any commenters so UI can resolve their usernames
+    try {
+      const commenterIds = Array.from(new Set((commentsData || []).map((c: any) => c.user_id)));
+      const authorIds = Array.from(new Set((postsData || []).map((p: any) => p.user_id)));
+      const idsToFetch = Array.from(new Set([...authorIds, ...commenterIds]));
+      if (idsToFetch.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('*').in('id', idsToFetch as string[]);
+        if (profiles && profiles.length) {
+          const users = getUsers();
+          profiles.forEach((pr: any) => {
+            if (!users.find(u => u.id === pr.id)) {
+              users.push({
+                id: pr.id,
+                username: pr.username || '',
+                email: '',
+                password: '',
+                avatar: pr.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${pr.username}`,
+                bio: pr.bio || '',
+                createdAt: pr.created_at || new Date().toISOString(),
+              });
+            }
+          });
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
 
     const commentsByPost: Record<string, Comment[]> = {};
     (commentsData || []).forEach((c: any) => {
@@ -436,6 +491,34 @@ export const getPostsByUserId = async (userId: string): Promise<Post[]> => {
     if (!postsData) return [];
     const postIds = postsData.map((p: any) => p.id);
     const { data: commentsData } = await supabase.from('comments').select('*').in('post_id', postIds).order('created_at', { ascending: true });
+
+    // cache profile for the requested user and any commenters so UI shows usernames
+    try {
+      const commenterIds = Array.from(new Set((commentsData || []).map((c: any) => c.user_id)));
+      const idsToFetch = Array.from(new Set([userId, ...commenterIds]));
+      if (idsToFetch.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('*').in('id', idsToFetch as string[]);
+        if (profiles && profiles.length) {
+          const users = getUsers();
+          profiles.forEach((pr: any) => {
+            if (!users.find(u => u.id === pr.id)) {
+              users.push({
+                id: pr.id,
+                username: pr.username || '',
+                email: '',
+                password: '',
+                avatar: pr.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${pr.username}`,
+                bio: pr.bio || '',
+                createdAt: pr.created_at || new Date().toISOString(),
+              });
+            }
+          });
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
     const commentsByPost: Record<string, Comment[]> = {};
     (commentsData || []).forEach((c: any) => {
       const cm: Comment = { id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at };
