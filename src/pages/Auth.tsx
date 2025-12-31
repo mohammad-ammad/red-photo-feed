@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -18,6 +19,12 @@ const Auth = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
+    if (isSignUp && !email.trim()) {
+      toast({ title: 'Error', description: 'Please provide an email', variant: 'destructive' });
+      setIsLoading(false);
+      return;
+    }
 
     if (!username.trim() || !password.trim()) {
       toast({
@@ -41,7 +48,7 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const success = signUp(username.trim(), password);
+        const success = await signUp(username.trim(), email.trim(), password);
         if (success) {
           toast({
             title: 'Welcome!',
@@ -56,7 +63,7 @@ const Auth = () => {
           });
         }
       } else {
-        const success = signIn(username.trim(), password);
+        const success = await signIn(email.trim(), password);
         if (success) {
           toast({
             title: 'Welcome back!',
@@ -99,6 +106,21 @@ const Auth = () => {
               autoComplete="username"
             />
           </div>
+
+          {isSignUp && (
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="h-12"
+                autoComplete="email"
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -146,7 +168,7 @@ const Auth = () => {
         {/* Demo hint */}
         <div className="text-center text-xs text-muted-foreground bg-secondary/50 rounded-lg p-3">
           <p className="font-medium mb-1">Demo Account</p>
-          <p>Username: demo_user • Password: demo123</p>
+          <p>Email: demo_user@example.com • Password: demo123</p>
         </div>
       </div>
     </div>

@@ -4,9 +4,9 @@ import { User, getCurrentUser, signIn as storageSignIn, signUp as storageSignUp,
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  signIn: (username: string, password: string) => boolean;
-  signUp: (username: string, password: string) => boolean;
-  signOut: () => void;
+  signIn: (username: string, password: string) => Promise<boolean>;
+  signUp: (username: string, email: string, password: string) => Promise<boolean>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,14 +16,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    initializeStorage();
-    const currentUser = getCurrentUser();
-    setUser(currentUser);
-    setIsLoading(false);
+    const init = async () => {
+      initializeStorage();
+      const currentUser = getCurrentUser();
+      setUser(currentUser);
+      setIsLoading(false);
+    };
+    init();
   }, []);
 
-  const signIn = (username: string, password: string): boolean => {
-    const loggedInUser = storageSignIn(username, password);
+  const signIn = async (username: string, password: string): Promise<boolean> => {
+    const loggedInUser = await storageSignIn(username, password);
     if (loggedInUser) {
       setUser(loggedInUser);
       return true;
@@ -31,8 +34,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return false;
   };
 
-  const signUp = (username: string, password: string): boolean => {
-    const newUser = storageSignUp(username, password);
+  const signUp = async (username: string, email: string, password: string): Promise<boolean> => {
+    const newUser = await storageSignUp(username, email, password);
     if (newUser) {
       setUser(newUser);
       return true;
@@ -40,8 +43,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return false;
   };
 
-  const signOut = () => {
-    storageSignOut();
+  const signOut = async () => {
+    await storageSignOut();
     setUser(null);
   };
 

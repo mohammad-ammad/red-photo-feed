@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   username: string;
+  email: string;
   password: string;
   avatar: string;
   bio: string;
@@ -23,6 +24,8 @@ export interface Comment {
   text: string;
   createdAt: string;
 }
+
+import { supabase } from '@/lib/supabase';
 
 const USERS_KEY = 'gallery_users';
 const POSTS_KEY = 'gallery_posts';
@@ -62,6 +65,7 @@ const samplePosts: Post[] = [
 const demoUser: User = {
   id: 'demo',
   username: 'demo_user',
+  email: 'demo_user@example.com',
   password: 'demo123',
   avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
   bio: 'Welcome to the gallery! 📸',
@@ -74,6 +78,78 @@ export const initializeStorage = () => {
   }
   if (!localStorage.getItem(POSTS_KEY)) {
     localStorage.setItem(POSTS_KEY, JSON.stringify(samplePosts));
+  }
+  // If Supabase is configured, sync current auth state to local storage and
+  // ensure a cached profile exists for quick lookups in the UI.
+  if (supabase) {
+    // initial session sync
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const user = data?.session?.user;
+        if (user) {
+          localStorage.setItem(CURRENT_USER_KEY, user.id);
+          // try to fetch profile and cache it locally
+          try {
+            const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+            if (profile) {
+              const users = getUsers();
+              const exists = users.find(u => u.id === profile.id);
+              if (!exists) {
+                users.push({
+                  id: profile.id,
+                  username: profile.username || '',
+                  email: user.email || '',
+                  password: '',
+                  avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
+                  bio: profile.bio || '',
+                  createdAt: profile.created_at || new Date().toISOString(),
+                });
+                localStorage.setItem(USERS_KEY, JSON.stringify(users));
+              }
+            }
+          } catch (e) {
+            // ignore profile fetch errors
+          }
+        }
+      } catch (e) {
+        // ignore session fetch errors
+      }
+    })();
+
+    // listen to auth changes and keep local cache in sync
+    supabase.auth.onAuthStateChange((event, session) => {
+      const user = session?.user || null;
+      if (user) {
+        localStorage.setItem(CURRENT_USER_KEY, user.id);
+        // fetch profile and cache it
+        (async () => {
+          try {
+            const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+            if (profile) {
+              const users = getUsers();
+              const exists = users.find(u => u.id === profile.id);
+              if (!exists) {
+                users.push({
+                  id: profile.id,
+                  username: profile.username || '',
+                  email: user.email || '',
+                  password: '',
+                  avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
+                  bio: profile.bio || '',
+                  createdAt: profile.created_at || new Date().toISOString(),
+                });
+                localStorage.setItem(USERS_KEY, JSON.stringify(users));
+              }
+            }
+          } catch (e) {
+            // ignore profile fetch errors
+          }
+        })();
+      } else {
+        localStorage.removeItem(CURRENT_USER_KEY);
+      }
+    });
   }
 };
 
@@ -94,36 +170,104 @@ export const getCurrentUser = (): User | null => {
   return users.find(u => u.id === userId) || null;
 };
 
-export const signUp = (username: string, password: string): User | null => {
-  const users = getUsers();
-  if (users.find(u => u.username === username)) {
-    return null;
+
+export const signUp = async (username: string, email: string, password: string): Promise<User | null> => {
+  if (!supabase) {
+    const users = getUsers();
+    if (users.find(u => u.username === username)) {
+      return null;
+    }
+    const newUser: User = {
+      id: Date.now().toString(),
+      username,
+      email,
+      password,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${username}`,
+      bio: '',
+      createdAt: new Date().toISOString(),
+    };
+    users.push(newUser);
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    localStorage.setItem(CURRENT_USER_KEY, newUser.id);
+    return newUser;
   }
-  const newUser: User = {
-    id: Date.now().toString(),
+
+  // Use Supabase auth (map username to an email for auth reasons)
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } });
+  if (error || !data?.user) return null;
+
+  const user = data.user;
+  // create profile row
+  try {
+    await supabase.from('profiles').insert({ id: user.id, username, avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${username}` });
+  } catch (e) {
+    // ignore insert errors
+  }
+
+  // cache minimal profile locally for UI usage
+  const users = getUsers();
+  users.push({
+    id: user.id,
     username,
-    password,
+    email: email,
+    password: '',
     avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${username}`,
     bio: '',
     createdAt: new Date().toISOString(),
-  };
-  users.push(newUser);
+  });
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  localStorage.setItem(CURRENT_USER_KEY, newUser.id);
-  return newUser;
+  localStorage.setItem(CURRENT_USER_KEY, user.id);
+
+  return users[users.length - 1];
 };
 
-export const signIn = (username: string, password: string): User | null => {
-  const users = getUsers();
-  const user = users.find(u => u.username === username && u.password === password);
-  if (user) {
-    localStorage.setItem(CURRENT_USER_KEY, user.id);
-    return user;
+
+export const signIn = async (email: string, password: string): Promise<User | null> => {
+  if (!supabase) {
+    const users = getUsers();
+    const user = users.find(u => (u.username === email || u.email === email) && u.password === password);
+    if (user) {
+      localStorage.setItem(CURRENT_USER_KEY, user.id);
+      return user;
+    }
+    return null;
   }
-  return null;
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data?.user) return null;
+
+  const user = data.user;
+  // fetch profile and cache locally
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  const users = getUsers();
+  const existing = users.find(u => u.id === user.id);
+  if (!existing) {
+    const fallbackUsername = profile?.username || (user.email ? user.email.split('@')[0] : '');
+    users.push({
+      id: user.id,
+      username: fallbackUsername,
+      email: user.email || '',
+      password: '',
+      avatar: profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${fallbackUsername}`,
+      bio: profile?.bio || '',
+      createdAt: profile?.created_at || new Date().toISOString(),
+    });
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  }
+  localStorage.setItem(CURRENT_USER_KEY, user.id);
+
+  return getUsers().find(u => u.id === user.id) || null;
 };
 
-export const signOut = () => {
+
+export const signOut = async () => {
+  if (supabase) {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      // ignore signOut errors
+    }
+  }
   localStorage.removeItem(CURRENT_USER_KEY);
 };
 
