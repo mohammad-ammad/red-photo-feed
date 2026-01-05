@@ -8,6 +8,7 @@ export interface User {
   avatar: string;
   bio: string;
   createdAt: string;
+  role?: 'viewer' | 'creator';
 }
 
 export interface Comment {
@@ -70,6 +71,7 @@ const demoUser: User = {
   avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
   bio: 'Welcome to the gallery! 📸',
   createdAt: new Date().toISOString(),
+  role: 'creator',
 };
 
 export const initializeStorage = () => {
@@ -103,6 +105,7 @@ export const initializeStorage = () => {
                 avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
                 bio: profile.bio || '',
                 createdAt: profile.created_at || new Date().toISOString(),
+                role: (profile as any).role || 'viewer',
               });
               localStorage.setItem(USERS_KEY, JSON.stringify(users));
             }
@@ -135,6 +138,7 @@ export const initializeStorage = () => {
                 avatar: profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`,
                 bio: profile.bio || '',
                 createdAt: profile.created_at || new Date().toISOString(),
+                role: (profile as any).role || 'viewer',
               });
               localStorage.setItem(USERS_KEY, JSON.stringify(users));
             }
@@ -188,6 +192,7 @@ export const getPosts = async (): Promise<Post[]> => {
                 avatar: pr.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${pr.username}`,
                 bio: pr.bio || '',
                 createdAt: pr.created_at || new Date().toISOString(),
+                role: pr.role || 'viewer',
               });
             }
           });
@@ -222,6 +227,7 @@ export const getPosts = async (): Promise<Post[]> => {
                 avatar: pr.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${pr.username}`,
                 bio: pr.bio || '',
                 createdAt: pr.created_at || new Date().toISOString(),
+                role: pr.role || 'viewer',
               });
             }
           });
@@ -285,6 +291,7 @@ export const signUp = async (username: string, email: string, password: string):
       avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${username}`,
       bio: '',
       createdAt: new Date().toISOString(),
+      role: 'viewer',
     };
     users.push(newUser);
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
@@ -296,7 +303,7 @@ export const signUp = async (username: string, email: string, password: string):
   if (error || !data?.user) return { success: false };
   const user = data.user;
   try {
-    await supabase.from('profiles').insert({ id: user.id, username, avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${username}` });
+    await supabase.from('profiles').insert({ id: user.id, username, avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${username}`, role: 'viewer' });
   } catch (e) {
     // ignore
   }
@@ -323,20 +330,24 @@ export const signIn = async (email: string, password: string): Promise<User | nu
   try {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
     const users = getUsers();
-    const existing = users.find(u => u.id === user.id);
-    if (!existing) {
-      const fallbackUsername = profile?.username || (user.email ? user.email.split('@')[0] : '');
-      users.push({
-        id: user.id,
-        username: fallbackUsername,
-        email: user.email || '',
-        password: '',
-        avatar: profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${fallbackUsername}`,
-        bio: profile?.bio || '',
-        createdAt: profile?.created_at || new Date().toISOString(),
-      });
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    const existingIndex = users.findIndex(u => u.id === user.id);
+    const fallbackUsername = profile?.username || (user.email ? user.email.split('@')[0] : '');
+    const entry = {
+      id: user.id,
+      username: fallbackUsername,
+      email: user.email || '',
+      password: '',
+      avatar: profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${fallbackUsername}`,
+      bio: profile?.bio || '',
+      createdAt: profile?.created_at || new Date().toISOString(),
+      role: (profile as any)?.role || 'viewer',
+    };
+    if (existingIndex === -1) {
+      users.push(entry);
+    } else {
+      users[existingIndex] = { ...users[existingIndex], ...entry };
     }
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
   } catch (e) {
     // ignore
   }
@@ -482,6 +493,25 @@ export const getUserById = (userId: string): User | null => {
   return users.find(u => u.id === userId) || null;
 };
 
+export const setUserRole = async (userId: string, role: 'viewer' | 'creator') => {
+  // update remote profile if supabase configured
+  if (supabase) {
+    try {
+      await supabase.from('profiles').update({ role }).eq('id', userId);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // update local cache
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx > -1) {
+    users[idx].role = role;
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  }
+};
+
 export const getPostsByUserId = async (userId: string): Promise<Post[]> => {
   if (!supabase) {
     return getPostsSync().filter(p => p.userId === userId);
@@ -509,7 +539,8 @@ export const getPostsByUserId = async (userId: string): Promise<Post[]> => {
                 password: '',
                 avatar: pr.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${pr.username}`,
                 bio: pr.bio || '',
-                createdAt: pr.created_at || new Date().toISOString(),
+                  createdAt: pr.created_at || new Date().toISOString(),
+                  role: pr.role || 'viewer',
               });
             }
           });

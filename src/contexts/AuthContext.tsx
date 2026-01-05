@@ -5,6 +5,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<boolean>;
+  signInAdmin: (email: string, password: string) => Promise<boolean>;
   signUp: (username: string, email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
 }
@@ -28,8 +29,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string): Promise<boolean> => {
     const loggedInUser = await storageSignIn(email, password);
     if (loggedInUser) {
+      // prevent creators from signing in via public auth route
+      if (loggedInUser.role === 'creator') {
+        await storageSignOut();
+        return false;
+      }
       setUser(loggedInUser);
       return true;
+    }
+    return false;
+  };
+
+  const signInAdmin = async (email: string, password: string): Promise<boolean> => {
+    const loggedInUser = await storageSignIn(email, password);
+    if (loggedInUser && loggedInUser.role === 'creator') {
+      setUser(loggedInUser);
+      return true;
+    }
+    // if not creator, ensure no session is kept
+    if (loggedInUser) {
+      await storageSignOut();
     }
     return false;
   };
@@ -50,7 +69,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, signIn, signInAdmin, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
