@@ -15,7 +15,8 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navItems = [
     { path: '/feed', icon: Home, label: 'Home' },
-    { path: '/create', icon: PlusSquare, label: 'Create' },
+    // show create only for creators
+    ...(user.role === 'creator' ? [{ path: '/create', icon: PlusSquare, label: 'Create' }] : []),
     { path: '/profile', icon: User, label: 'Profile' },
   ];
 

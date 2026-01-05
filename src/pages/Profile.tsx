@@ -75,13 +75,17 @@ const Profile = () => {
           {posts.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No posts yet</p>
-              <Button
-                variant="link"
-                className="text-primary mt-2"
-                onClick={() => navigate('/create')}
-              >
-                Share your first photo
-              </Button>
+              {user.role === 'creator' ? (
+                <Button
+                  variant="link"
+                  className="text-primary mt-2"
+                  onClick={() => navigate('/create')}
+                >
+                  Share your first photo
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-2">Only creators can upload posts.</p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-1">
