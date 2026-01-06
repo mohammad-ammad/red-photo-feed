@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, MessageCircle } from 'lucide-react';
-import { Post, toggleLike, addComment, getUserById, getCurrentUser } from '@/lib/storage';
+import { Post, toggleLike, addComment, getUserById, getCurrentUser, incrementPostView } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,6 +18,11 @@ const PostCard = ({ post, onUpdate }: PostCardProps) => {
   const currentUser = getCurrentUser();
   const postUser = getUserById(post.userId);
   const isLiked = currentUser ? post.likes.includes(currentUser.id) : false;
+
+  // Track view when post card is displayed
+  useEffect(() => {
+    incrementPostView(post.id);
+  }, [post.id]);
 
   const handleLike = async () => {
     if (!currentUser) return;

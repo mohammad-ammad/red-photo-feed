@@ -27,6 +27,7 @@ export interface Post {
   peoplePresent?: string;
   rating?: number;
   likes: string[];
+  views: number;
   comments: Comment[];
   createdAt: string;
 }
@@ -46,6 +47,7 @@ const samplePosts: Post[] = [
     peoplePresent: 'Sarah, Mike',
     rating: 5,
     likes: [],
+    views: 0,
     comments: [],
     createdAt: new Date().toISOString(),
   },
@@ -57,6 +59,7 @@ const samplePosts: Post[] = [
     location: 'Yosemite National Park',
     rating: 5,
     likes: [],
+    views: 0,
     comments: [],
     createdAt: new Date().toISOString(),
   },
@@ -66,6 +69,7 @@ const samplePosts: Post[] = [
     imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600',
     caption: 'City lights ✨',
     likes: [],
+    views: 0,
     comments: [],
     createdAt: new Date().toISOString(),
   },
@@ -267,6 +271,7 @@ export const getPosts = async (): Promise<Post[]> => {
       peoplePresent: p.people_present || undefined,
       rating: p.rating || undefined,
       likes: p.likes || [],
+      views: p.views || 0,
       comments: commentsByPost[p.id] || [],
       createdAt: p.created_at,
     }));
@@ -392,6 +397,7 @@ export const createPost = async (imageUrl: string, caption: string, location?: s
       peoplePresent: peoplePresent || undefined,
       rating: rating || undefined,
       likes: [],
+      views: 0,
       comments: [],
       createdAt: new Date().toISOString(),
     };
@@ -420,6 +426,7 @@ export const createPost = async (imageUrl: string, caption: string, location?: s
       peoplePresent: data.people_present || undefined,
       rating: data.rating || undefined,
       likes: data.likes || [],
+      views: data.views || 0,
       comments: [],
       createdAt: data.created_at,
     };
@@ -463,6 +470,7 @@ export const toggleLike = async (postId: string): Promise<Post | null> => {
       peoplePresent: updated.people_present || undefined,
       rating: updated.rating || undefined,
       likes: updated.likes || [],
+      views: updated.views || 0,
       comments: (commentsData || []).map((c: any) => ({ id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at })),
       createdAt: updated.created_at,
     };
@@ -506,6 +514,7 @@ export const addComment = async (postId: string, text: string): Promise<Post | n
       peoplePresent: postRow.people_present || undefined,
       rating: postRow.rating || undefined,
       likes: postRow.likes || [],
+      views: postRow.views || 0,
       comments: (commentsData || []).map((c: any) => ({ id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at })),
       createdAt: postRow.created_at,
     };
@@ -583,8 +592,30 @@ export const getPostsByUserId = async (userId: string): Promise<Post[]> => {
       commentsByPost[c.post_id] = commentsByPost[c.post_id] || [];
       commentsByPost[c.post_id].push(cm);
     });
-    return postsData.map((p: any) => ({ id: p.id, userId: p.user_id, imageUrl: p.image_url, caption: p.caption || '', location: p.location || undefined, peoplePresent: p.people_present || undefined, rating: p.rating || undefined, likes: p.likes || [], comments: commentsByPost[p.id] || [], createdAt: p.created_at }));
+    return postsData.map((p: any) => ({ id: p.id, userId: p.user_id, imageUrl: p.image_url, caption: p.caption || '', location: p.location || undefined, peoplePresent: p.people_present || undefined, rating: p.rating || undefined, likes: p.likes || [], views: p.views || 0, comments: commentsByPost[p.id] || [], createdAt: p.created_at }));
   } catch (e) {
     return [];
+  }
+};
+
+export const incrementPostView = async (postId: string): Promise<void> => {
+  if (!supabase) {
+    const posts = getPostsSync();
+    const post = posts.find(p => p.id === postId);
+    if (post) {
+      post.views = (post.views || 0) + 1;
+      localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    }
+    return;
+  }
+
+  try {
+    const { data: postRow } = await supabase.from('posts').select('views').eq('id', postId).maybeSingle();
+    if (postRow) {
+      const newViews = (postRow.views || 0) + 1;
+      await supabase.from('posts').update({ views: newViews }).eq('id', postId);
+    }
+  } catch (e) {
+    // ignore
   }
 };

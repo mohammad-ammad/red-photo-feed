@@ -29,6 +29,11 @@ const Profile = () => {
 
   if (!user) return null;
 
+  // Calculate analytics
+  const totalLikes = posts.reduce((sum, post) => sum + post.likes.length, 0);
+  const totalViews = posts.reduce((sum, post) => sum + post.views, 0);
+  const totalComments = posts.reduce((sum, post) => sum + post.comments.length, 0);
+
   return (
     <Layout>
       <div className="p-4">
@@ -54,6 +59,27 @@ const Profile = () => {
             </div>
           </div>
         </div>
+
+        {/* Analytics Section for Creators */}
+        {user.role === 'creator' && posts.length > 0 && (
+          <div className="mb-6 p-4 bg-secondary/50 rounded-lg">
+            <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Analytics</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">{totalLikes}</div>
+                <div className="text-xs text-muted-foreground mt-1">Total Likes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{totalViews}</div>
+                <div className="text-xs text-muted-foreground mt-1">Total Views</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{totalComments}</div>
+                <div className="text-xs text-muted-foreground mt-1">Total Comments</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Sign Out Button */}
         <Button
