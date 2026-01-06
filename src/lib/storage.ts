@@ -23,6 +23,9 @@ export interface Post {
   userId: string;
   imageUrl: string;
   caption: string;
+  location?: string;
+  peoplePresent?: string;
+  rating?: number;
   likes: string[];
   comments: Comment[];
   createdAt: string;
@@ -39,6 +42,9 @@ const samplePosts: Post[] = [
     userId: 'demo',
     imageUrl: 'https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=600',
     caption: 'Beautiful sunset views 🌅',
+    location: 'Santorini, Greece',
+    peoplePresent: 'Sarah, Mike',
+    rating: 5,
     likes: [],
     comments: [],
     createdAt: new Date().toISOString(),
@@ -48,6 +54,8 @@ const samplePosts: Post[] = [
     userId: 'demo',
     imageUrl: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=600',
     caption: 'Nature at its finest 🌲',
+    location: 'Yosemite National Park',
+    rating: 5,
     likes: [],
     comments: [],
     createdAt: new Date().toISOString(),
@@ -255,6 +263,9 @@ export const getPosts = async (): Promise<Post[]> => {
       userId: p.user_id,
       imageUrl: p.image_url,
       caption: p.caption || '',
+      location: p.location || undefined,
+      peoplePresent: p.people_present || undefined,
+      rating: p.rating || undefined,
       likes: p.likes || [],
       comments: commentsByPost[p.id] || [],
       createdAt: p.created_at,
@@ -366,7 +377,7 @@ export const signOut = async () => {
   localStorage.removeItem(CURRENT_USER_KEY);
 };
 
-export const createPost = async (imageUrl: string, caption: string): Promise<Post | null> => {
+export const createPost = async (imageUrl: string, caption: string, location?: string, peoplePresent?: string, rating?: number): Promise<Post | null> => {
   const currentUser = getCurrentUser();
   if (!currentUser) return null;
 
@@ -377,6 +388,9 @@ export const createPost = async (imageUrl: string, caption: string): Promise<Pos
       userId: currentUser.id,
       imageUrl,
       caption,
+      location: location || undefined,
+      peoplePresent: peoplePresent || undefined,
+      rating: rating || undefined,
       likes: [],
       comments: [],
       createdAt: new Date().toISOString(),
@@ -387,9 +401,13 @@ export const createPost = async (imageUrl: string, caption: string): Promise<Pos
   }
 
   try {
+    const insertData: any = { user_id: currentUser.id, image_url: imageUrl, caption };
+    if (location) insertData.location = location;
+    if (peoplePresent) insertData.people_present = peoplePresent;
+    if (rating !== undefined) insertData.rating = rating;
     const { data, error } = await supabase
       .from('posts')
-      .insert({ user_id: currentUser.id, image_url: imageUrl, caption })
+      .insert(insertData)
       .select()
       .single();
     if (error || !data) return null;
@@ -398,6 +416,9 @@ export const createPost = async (imageUrl: string, caption: string): Promise<Pos
       userId: data.user_id,
       imageUrl: data.image_url,
       caption: data.caption || '',
+      location: data.location || undefined,
+      peoplePresent: data.people_present || undefined,
+      rating: data.rating || undefined,
       likes: data.likes || [],
       comments: [],
       createdAt: data.created_at,
@@ -438,6 +459,9 @@ export const toggleLike = async (postId: string): Promise<Post | null> => {
       userId: updated.user_id,
       imageUrl: updated.image_url,
       caption: updated.caption || '',
+      location: updated.location || undefined,
+      peoplePresent: updated.people_present || undefined,
+      rating: updated.rating || undefined,
       likes: updated.likes || [],
       comments: (commentsData || []).map((c: any) => ({ id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at })),
       createdAt: updated.created_at,
@@ -478,6 +502,9 @@ export const addComment = async (postId: string, text: string): Promise<Post | n
       userId: postRow.user_id,
       imageUrl: postRow.image_url,
       caption: postRow.caption || '',
+      location: postRow.location || undefined,
+      peoplePresent: postRow.people_present || undefined,
+      rating: postRow.rating || undefined,
       likes: postRow.likes || [],
       comments: (commentsData || []).map((c: any) => ({ id: c.id, userId: c.user_id, text: c.text, createdAt: c.created_at })),
       createdAt: postRow.created_at,
@@ -556,7 +583,7 @@ export const getPostsByUserId = async (userId: string): Promise<Post[]> => {
       commentsByPost[c.post_id] = commentsByPost[c.post_id] || [];
       commentsByPost[c.post_id].push(cm);
     });
-    return postsData.map((p: any) => ({ id: p.id, userId: p.user_id, imageUrl: p.image_url, caption: p.caption || '', likes: p.likes || [], comments: commentsByPost[p.id] || [], createdAt: p.created_at }));
+    return postsData.map((p: any) => ({ id: p.id, userId: p.user_id, imageUrl: p.image_url, caption: p.caption || '', location: p.location || undefined, peoplePresent: p.people_present || undefined, rating: p.rating || undefined, likes: p.likes || [], comments: commentsByPost[p.id] || [], createdAt: p.created_at }));
   } catch (e) {
     return [];
   }

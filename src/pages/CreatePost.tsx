@@ -12,6 +12,9 @@ import Layout from '@/components/Layout';
 const CreatePost = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [caption, setCaption] = useState('');
+  const [location, setLocation] = useState('');
+  const [peoplePresent, setPeoplePresent] = useState('');
+  const [rating, setRating] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -29,7 +32,13 @@ const CreatePost = () => {
 
     setIsLoading(true);
 
-    const post = await createPost(imageUrl.trim(), caption.trim());
+    const post = await createPost(
+      imageUrl.trim(), 
+      caption.trim(), 
+      location.trim() || undefined,
+      peoplePresent.trim() || undefined,
+      rating > 0 ? rating : undefined
+    );
 
     if (post) {
       toast({
@@ -104,6 +113,49 @@ const CreatePost = () => {
               rows={3}
               className="resize-none"
             />
+          </div>
+
+          {/* Location */}
+          <div className="space-y-2">
+            <Label htmlFor="location">Location (optional)</Label>
+            <Input
+              id="location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Add a location..."
+              className="h-12"
+            />
+          </div>
+
+          {/* People Present */}
+          <div className="space-y-2">
+            <Label htmlFor="peoplePresent">People Present (optional)</Label>
+            <Input
+              id="peoplePresent"
+              type="text"
+              value={peoplePresent}
+              onChange={(e) => setPeoplePresent(e.target.value)}
+              placeholder="Tag people..."
+              className="h-12"
+            />
+          </div>
+
+          {/* Rating */}
+          <div className="space-y-2">
+            <Label htmlFor="rating">Rating (optional)</Label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(rating === star ? 0 : star)}
+                  className="text-3xl transition-all hover:scale-110"
+                >
+                  {star <= rating ? '⭐' : '☆'}
+                </button>
+              ))}
+            </div>
           </div>
 
           <Button

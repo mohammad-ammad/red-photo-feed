@@ -51,14 +51,21 @@ const PostCard = ({ post, onUpdate }: PostCardProps) => {
   return (
     <article className="bg-card border-b border-border">
       {/* Header */}
-      <div className="flex items-center gap-3 p-3">
-        <Avatar className="w-8 h-8">
-          <AvatarImage src={postUser?.avatar} alt={postUser?.username} />
-          <AvatarFallback className="bg-primary/10 text-primary text-xs">
-            {postUser?.username?.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <span className="font-medium text-sm">{postUser?.username}</span>
+      <div className="p-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="w-8 h-8">
+            <AvatarImage src={postUser?.avatar} alt={postUser?.username} />
+            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+              {postUser?.username?.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <span className="font-medium text-sm">{postUser?.username}</span>
+        </div>
+        {post.location && (
+          <div className="text-xs text-muted-foreground mt-1 ml-11">
+            📍 {post.location}
+          </div>
+        )}
       </div>
 
       {/* Image */}
@@ -101,6 +108,20 @@ const PostCard = ({ post, onUpdate }: PostCardProps) => {
           <span className="font-medium mr-2">{postUser?.username}</span>
           {post.caption}
         </p>
+
+        {/* People Present */}
+        {post.peoplePresent && (
+          <p className="text-xs text-muted-foreground mt-1">
+            👥 With {post.peoplePresent}
+          </p>
+        )}
+
+        {/* Rating */}
+        {post.rating && post.rating > 0 && (
+          <div className="text-sm mt-1">
+            {'⭐'.repeat(post.rating)}
+          </div>
+        )}
 
         {/* Comments preview */}
         {post.comments.length > 0 && !showComments && (
